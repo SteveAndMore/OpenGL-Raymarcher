@@ -54,14 +54,15 @@ vec2 rayMarch(vec3 origin, vec3 dir) {
 
 void render(inout vec3 col, in vec2 uv)
 {
-    vec3 origin = vec3(uv, 0.0);
+    vec3 origin = vec3(0.0, 0.0, -1.0);
     vec3 lookAt = vec3(0, 0, 1);
-    //vec3 rd = getCam(ro, lookAt) * normalize(vec3(uv, FOV));
 
-    vec2 hit = rayMarch(origin, lookAt);
+    vec3 dir = getCam(origin, lookAt) * normalize(vec3(uv, FOV));
+
+    vec2 hit = rayMarch(origin, dir);
     if (abs(hit.x) < MAX_DIST) {
-        vec3 p = origin + lookAt * hit.x;
-        col = getLight(p, lookAt, vec3(1,1,1));
+        vec3 p = origin + dir * hit.x;
+        col = getLight(p, dir, vec3(1,1,1));
     }
     else
         col = vec3(0,0,0);
