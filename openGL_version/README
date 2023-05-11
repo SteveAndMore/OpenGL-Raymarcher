@@ -1,0 +1,1 @@
+Compile comande: g++ main.cpp -lGL  -lGLEW -lglut -lpthread
