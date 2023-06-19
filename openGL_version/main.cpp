@@ -13,6 +13,7 @@
 #include <vector>
 #include <cmath>
 
+#include "scene.hpp"
 
 void test_opengl_error(std::string func, std::string file, int line);
 
@@ -24,6 +25,9 @@ void test_opengl_error(std::string func, std::string file, int line);
 
 GLuint program_id;
 GLuint vao_id;
+
+int pixWIDTH = 1024;
+int pixHEIGHT = 1024;
 
 void window_resize(int width, int height) {
   //std::cout << "glViewport(0,0,"<< width << "," << height << ");TEST_OPENGL_ERROR();" << std::endl;
@@ -46,7 +50,7 @@ void init_glut(int &argc, char *argv[]) {
   glutInitContextVersion(4,5);
   glutInitContextProfile(GLUT_CORE_PROFILE | GLUT_DEBUG);
   glutInitDisplayMode(GLUT_RGBA|GLUT_DOUBLE|GLUT_DEPTH);
-  glutInitWindowSize(1024, 1024);
+  glutInitWindowSize(pixWIDTH, pixHEIGHT);
   glutCreateWindow("Shader Programming");
   glutDisplayFunc(display);
   glutReshapeFunc(window_resize);
@@ -202,6 +206,119 @@ void test_opengl_error(std::string func, std::string file, int line) {
 
   }
 
+GLint cam_pos_id;
+GLint cam_rot_id;
+cam cam_;
+
+void init_scene()
+{
+    cam_.pos_x = 0;
+    cam_.pos_y = 0;
+    cam_.pos_z = 0;
+    cam_.look_at_x = 0;
+    cam_.look_at_y = 0;
+    cam_.look_at_z = 1;
+    cam_pos_id = glGetUniformLocation(program_id, "cam_pos");TEST_OPENGL_ERROR();
+    glProgramUniform3f(program_id, cam_pos_id, cam_.pos_x, cam_.pos_y, cam_.pos_z);TEST_OPENGL_ERROR();
+
+    cam_rot_id = glGetUniformLocation(program_id, "cam_rot");TEST_OPENGL_ERROR();
+    glProgramUniform3f(program_id, cam_rot_id, cam_.look_at_x, cam_.look_at_y, cam_.look_at_z);TEST_OPENGL_ERROR();
+}
+void update_cam_pos()
+{
+    glUniform3f(cam_pos_id, cam_.pos_x, cam_.pos_y, cam_.pos_z);TEST_OPENGL_ERROR();
+    glutPostRedisplay();
+}
+void update_cam_rot()
+{
+    glUniform3f(cam_rot_id, cam_.look_at_x, cam_.look_at_y, cam_.look_at_z);TEST_OPENGL_ERROR();
+    glutPostRedisplay();
+}
+
+void mouse(int button, int state, int x, int y) {
+    if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN)
+    {
+        if (!cam_.is_rotating)
+        {
+            cam_.is_rotating = true;
+
+            cam_.last_mouse_pos_x = x;
+            cam_.last_mouse_pos_y = y;
+        }
+    }
+    if (button == GLUT_LEFT_BUTTON && state == GLUT_UP)
+    {
+        cam_.is_rotating = false;
+    }
+}
+
+void mouse_motion(int x, int y)
+{
+    if (cam_.is_rotating)
+    {
+        float x_diff = (cam_.last_mouse_pos_x - x) / pixWIDTH;
+        float y_diff = (cam_.last_mouse_pos_y - y) / pixHEIGHT;
+        if (std::abs(x_diff) + std::abs(y_diff) > 1/pixWIDTH)
+        {
+            std::cout << "Big mouse move detect\n";
+            float sinx = sin(x_diff);
+            float cosx = cos(x_diff);
+            float siny = sin(y_diff);
+            float cosy = cos(y_diff);
+
+            float n_look_at_x = cam_.look_at_x * cosx + cam_.look_at_y * -sinx;
+            float n_look_at_y = cam_.look_at_x * sinx + cam_.look_at_y * cosx;
+
+            cam_.look_at_y = n_look_at_y;
+            cam_.look_at_x = n_look_at_x;
+
+            n_look_at_y = cam_.look_at_y * cosy + cam_.look_at_z * -siny;
+            float n_look_at_z = cam_.look_at_y * siny + cam_.look_at_z * cosy;
+
+            cam_.look_at_y = n_look_at_y;
+            cam_.look_at_z = n_look_at_z;
+
+            cam_.last_mouse_pos_x = x;
+            cam_.last_mouse_pos_y = y;
+            update_cam_rot();
+        }
+    }
+}
+
+float cam_mov = 0.1;
+void keyboard(unsigned char key, int x, int y)
+{
+    if (key == 32) //space
+    {
+        cam_.pos_z += cam_mov;
+        update_cam_pos();
+    }
+    if (key == 9) //tab
+    {
+        cam_.pos_z -= cam_mov;
+        update_cam_pos();
+    }
+    if (key == 97) //a
+    {
+        cam_.pos_x -= cam_mov;
+        update_cam_pos();
+    }
+    if (key == 115) //s
+    {
+        cam_.pos_y -= cam_mov;
+        update_cam_pos();
+    }
+    if (key == 100) //d
+    {
+        cam_.pos_x += cam_mov;
+        update_cam_pos();
+    }
+    if (key == 119) //w
+    {
+        cam_.pos_y += cam_mov;
+        update_cam_pos();
+    }
+}
 
 int main(int argc, char *argv[]) {
   init_glut(argc, argv);
@@ -209,5 +326,9 @@ int main(int argc, char *argv[]) {
     std::exit(-1);
   init_GL();
   init_shaders();
+  init_scene();
+  glutMouseFunc(mouse);
+  glutMotionFunc(mouse_motion);
+  glutKeyboardFunc(keyboard);
   glutMainLoop();
 }
