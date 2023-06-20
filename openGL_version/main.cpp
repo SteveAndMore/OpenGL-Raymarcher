@@ -1,17 +1,10 @@
-/************************************************************************/
-/*                                                                      */
-/* (c) J. Fabrizio                                                      */
-/*                                                                      */
-/*                                                                      */
-/************************************************************************/
-
-
 #include <GL/glew.h>
 #include <GL/freeglut.h>
 #include <iostream>
 #include <fstream>
 #include <vector>
 #include <cmath>
+#include <cstring>
 
 #include "scene.hpp"
 
@@ -208,21 +201,28 @@ void test_opengl_error(std::string func, std::string file, int line) {
 
 GLint cam_pos_id;
 GLint cam_rot_id;
+GLint time_id;
 cam cam_;
 
-void init_scene()
+void init_scene(float scene_type)
 {
     cam_.pos_x = 0;
     cam_.pos_y = 0;
     cam_.pos_z = 0;
-    cam_.look_at_x = 0;
-    cam_.look_at_y = 0;
+    cam_.look_at_x = 1;
+    cam_.look_at_y = 1;
     cam_.look_at_z = 1;
     cam_pos_id = glGetUniformLocation(program_id, "cam_pos");TEST_OPENGL_ERROR();
     glProgramUniform3f(program_id, cam_pos_id, cam_.pos_x, cam_.pos_y, cam_.pos_z);TEST_OPENGL_ERROR();
 
     cam_rot_id = glGetUniformLocation(program_id, "cam_rot");TEST_OPENGL_ERROR();
     glProgramUniform3f(program_id, cam_rot_id, cam_.look_at_x, cam_.look_at_y, cam_.look_at_z);TEST_OPENGL_ERROR();
+
+    GLint scene_type_id = glGetUniformLocation(program_id, "sceneType");TEST_OPENGL_ERROR();
+    glProgramUniform1f(program_id, scene_type_id, scene_type);TEST_OPENGL_ERROR();
+
+    time_id = glGetUniformLocation(program_id, "time");TEST_OPENGL_ERROR();
+    glProgramUniform1f(program_id, time_id, glutGet(GLUT_ELAPSED_TIME));TEST_OPENGL_ERROR();
 }
 void update_cam_pos()
 {
@@ -232,6 +232,11 @@ void update_cam_pos()
 void update_cam_rot()
 {
     glUniform3f(cam_rot_id, cam_.look_at_x, cam_.look_at_y, cam_.look_at_z);TEST_OPENGL_ERROR();
+    glutPostRedisplay();
+}
+void idle()
+{
+    glUniform1f(time_id, glutGet(GLUT_ELAPSED_TIME));TEST_OPENGL_ERROR();
     glutPostRedisplay();
 }
 
@@ -260,20 +265,23 @@ void mouse_motion(int x, int y)
         float y_diff = (cam_.last_mouse_pos_y - y) / pixHEIGHT;
         if (std::abs(x_diff) + std::abs(y_diff) > 1/pixWIDTH)
         {
-            std::cout << "Big mouse move detect\n";
             float sinx = sin(x_diff);
             float cosx = cos(x_diff);
             float siny = sin(y_diff);
             float cosy = cos(y_diff);
+            float n_look_at_x, n_look_at_y, n_look_at_z;
 
-            float n_look_at_x = cam_.look_at_x * cosx + cam_.look_at_y * -sinx;
-            float n_look_at_y = cam_.look_at_x * sinx + cam_.look_at_y * cosx;
+            //sideways rotation
+            n_look_at_x = cam_.look_at_x * cosx + cam_.look_at_z * sinx;
+            n_look_at_z = cam_.look_at_x * -sinx + cam_.look_at_z * cosx;
 
-            cam_.look_at_y = n_look_at_y;
+            cam_.look_at_z = n_look_at_z;
             cam_.look_at_x = n_look_at_x;
 
+
+            //up down rotation
             n_look_at_y = cam_.look_at_y * cosy + cam_.look_at_z * -siny;
-            float n_look_at_z = cam_.look_at_y * siny + cam_.look_at_z * cosy;
+            n_look_at_z = cam_.look_at_y * siny + cam_.look_at_z * cosy;
 
             cam_.look_at_y = n_look_at_y;
             cam_.look_at_z = n_look_at_z;
@@ -318,15 +326,29 @@ void keyboard(unsigned char key, int x, int y)
         cam_.pos_y += cam_mov;
         update_cam_pos();
     }
+    if (key == 114) //r
+    {
+        window_resize(pixWIDTH * 2, pixHEIGHT);
+        glutPostRedisplay();
+    }
 }
 
 int main(int argc, char *argv[]) {
+    float scene_type = 0;
+    if (argc > 1)
+    {
+        if (strcmp(argv[0], "1") != 0)
+            scene_type = 1;
+        if (strcmp(argv[0], "2") != 0)
+            scene_type = 2;
+    }
   init_glut(argc, argv);
   if (!init_glew())
     std::exit(-1);
   init_GL();
   init_shaders();
-  init_scene();
+  init_scene(scene_type);
+  glutIdleFunc(idle);
   glutMouseFunc(mouse);
   glutMotionFunc(mouse_motion);
   glutKeyboardFunc(keyboard);
