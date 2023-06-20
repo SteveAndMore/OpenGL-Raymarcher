@@ -209,8 +209,8 @@ void init_scene(float scene_type)
     cam_.pos_x = 0;
     cam_.pos_y = 0;
     cam_.pos_z = 0;
-    cam_.look_at_x = 1;
-    cam_.look_at_y = 1;
+    cam_.look_at_x = 0;
+    cam_.look_at_y = 0;
     cam_.look_at_z = 1;
     cam_pos_id = glGetUniformLocation(program_id, "cam_pos");TEST_OPENGL_ERROR();
     glProgramUniform3f(program_id, cam_pos_id, cam_.pos_x, cam_.pos_y, cam_.pos_z);TEST_OPENGL_ERROR();

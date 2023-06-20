@@ -27,11 +27,20 @@ float fPlane(vec3 p, vec3 n, float distanceFromOrigin) {
     return dot(p, n) + distanceFromOrigin;
 }
 
+float fBox(vec3 p, vec3 b) {
+    vec3 q = abs(p) - b;
+    return length(max(q,0.0)) + min(max(q.x,max(q.y,q.z)),0.0);
+}
+
 vec2 fOpUnionID(vec2 res1, vec2 res2) {
     return (res1.x < res2.x) ? res1 : res2;
 }
 
-float fDisplace(vec3 p) {
+vec2 fOpDifferenceID(vec2 res1, vec2 res2) {
+    return (res1.x > -res2.x) ? res1 : vec2(-res2.x, res2.y);
+}
+
+float wave(vec3 p) {
     float time_ = time / 1000;
     float h = sin(p.y + sin(5.0 * time_));
     if (h < -0.1)
@@ -39,20 +48,51 @@ float fDisplace(vec3 p) {
     return (sin(p.x + time_ * 5) + 1) * (sin(p.z +  0.1 * sin(time_ * 10)) - 1) * h;
 }
 
+float vmax(vec3 v) {
+    return max(max(v.x, v.y), v.z);
+}
+
 vec2 map(vec3 p) {
-    // shere
     if (sceneType == 2)
+    {
         p = mod(p ,10);
-    vec3 ps = p - vec3(5.0, 5.0, 5.0);
-    float sphereDist = fSphere(ps, 0.6);
+        vec3 ps = p - vec3(5.0, 5.0, 5.0);
+        float sphereDist = fSphere(ps, 0.6);
+        float sphereID = 1.0;
+        return vec2(sphereDist, sphereID);
+    }
+
+    if (sceneType == 1)
+    {
+        
+        // water
+        float waterDist = fPlane(p, vec3(0, 1, 0), 4.0 + wave(p));
+        float waterID = 11.0;
+        vec2 water = vec2(waterDist, waterID);
+
+        return water;
+    }
+    vec2 ret;
+    // cube
+    float boxDist = fBox(p - vec3(0.2, 0.2, 1.5), vec3(0.3, 0.3, 0.3));
+    float boxID = 3.0;
+    vec2 box = vec2(boxDist, boxID);
+
+
+    // shere
+    vec3 ps = p - vec3(0.2, 0.2, 1.5);
+    float sphereDist = fSphere(ps, 0.4);
     float sphereID = 1.0;
     vec2 sphere = vec2(sphereDist, sphereID);
+
+
     // plane
-    float planeDist = fPlane(p, vec3(0, 1, 0), 4.0 + fDisplace(p));
+    float planeDist = fPlane(p, vec3(0, 1, 0), 4.0);
     float planeID = 2.0;
     vec2 plane = vec2(planeDist, planeID);
 
-    vec2 ret = fOpUnionID(sphere, plane);
+    ret = fOpDifferenceID(box, sphere);
+    ret = fOpUnionID(ret, plane);
     return ret;
 }
 
@@ -98,14 +138,15 @@ vec3 getLight(vec3 p, vec3 dir, vec3 color)
     vec3 light  = normalize(lightPos - p);
     vec3 norm = getNormal(p);
     vec3 spec_reflect = reflect(-light, norm);
+    vec3 ambient = color * 0.05;
 
 
     vec3 specular = vec3(0.6) * pow(clamp(dot(spec_reflect, -dir), 0.0, 1.0), 10.0);
     vec3 diffuse = color * clamp(dot(light, norm), 0.0, 1.0);
 
     if (lightMarch(p + norm * 0.02, normalize(lightPos), length(lightPos - p)))
-       return specular;
-    return diffuse + specular;
+       return specular + ambient;
+    return diffuse + specular + ambient;
 }
 
 void render(inout vec3 col, in vec2 uv)
@@ -120,8 +161,12 @@ void render(inout vec3 col, in vec2 uv)
         vec3 p = origin + dir * hit.x;
         if (hit.y == 1)
             col = getLight(p, dir, vec3(1,0.8,0.5));
+        else if (hit.y == 2)
+            col = getLight(p, dir, vec3(0.6,0.6,0.2));
+        else if (hit.y == 3)
+            col = getLight(p, dir, vec3(0.3,0.2,0.4));
         else
-            col = getLight(p, dir, vec3(0,1,0));
+            col = getLight(p, dir, vec3(0.5,0.5,0.5));
     }
     else
         col = vec3(0,0,0);
