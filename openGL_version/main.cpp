@@ -23,7 +23,6 @@ int pixWIDTH = 1024;
 int pixHEIGHT = 1024;
 
 void window_resize(int width, int height) {
-  //std::cout << "glViewport(0,0,"<< width << "," << height << ");TEST_OPENGL_ERROR();" << std::endl;
   glViewport(0,0,width,height);TEST_OPENGL_ERROR();
 }
 
@@ -38,7 +37,6 @@ void display() {
 }
 
 void init_glut(int &argc, char *argv[]) {
-  //glewExperimental = GL_TRUE;
   glutInit(&argc, argv);
   glutInitContextVersion(4,5);
   glutInitContextProfile(GLUT_CORE_PROFILE | GLUT_DEBUG);
@@ -131,7 +129,6 @@ bool attach_and_link_program(const std::vector<GLuint> &shaders_id, GLuint &prog
     program_id=0;
     return false;
   }
-  //glUseProgram(program_id);TEST_OPENGL_ERROR();
   return true;
 }
 
@@ -202,6 +199,8 @@ void test_opengl_error(std::string func, std::string file, int line) {
 GLint cam_pos_id;
 GLint cam_rot_id;
 GLint time_id;
+GLint canon_time_id;
+GLint cam_resolution_id;
 cam cam_;
 
 void init_scene(float scene_type)
@@ -223,6 +222,11 @@ void init_scene(float scene_type)
 
     time_id = glGetUniformLocation(program_id, "time");TEST_OPENGL_ERROR();
     glProgramUniform1f(program_id, time_id, glutGet(GLUT_ELAPSED_TIME));TEST_OPENGL_ERROR();
+
+    cam_resolution_id = glGetUniformLocation(program_id, "u_resolution");TEST_OPENGL_ERROR();
+    glProgramUniform2f(program_id, cam_resolution_id, pixWIDTH, pixHEIGHT);TEST_OPENGL_ERROR();
+
+    canon_time_id = glGetUniformLocation(program_id, "canon_time");TEST_OPENGL_ERROR();
 }
 void update_cam_pos()
 {
@@ -296,6 +300,8 @@ void mouse_motion(int x, int y)
 float cam_mov = 0.1;
 void keyboard(unsigned char key, int x, int y)
 {
+    (void)x;
+    (void)y;
     if (key == 32) //space
     {
         cam_.pos_z += cam_mov;
@@ -328,8 +334,13 @@ void keyboard(unsigned char key, int x, int y)
     }
     if (key == 114) //r
     {
-        window_resize(pixWIDTH * 2, pixHEIGHT);
+        window_resize(2560, 1440);
+        glUniform2f(cam_resolution_id, pixWIDTH, pixHEIGHT);TEST_OPENGL_ERROR();
         glutPostRedisplay();
+    }
+    if (key == 102) //f
+    {
+        glUniform1f(canon_time_id, glutGet(GLUT_ELAPSED_TIME));TEST_OPENGL_ERROR();
     }
 }
 
@@ -337,9 +348,9 @@ int main(int argc, char *argv[]) {
     float scene_type = 0;
     if (argc > 1)
     {
-        if (strcmp(argv[0], "1") != 0)
+        if (strcmp(argv[1], "1") == 0)
             scene_type = 1;
-        if (strcmp(argv[0], "2") != 0)
+        if (strcmp(argv[1], "2") == 0)
             scene_type = 2;
     }
   init_glut(argc, argv);
