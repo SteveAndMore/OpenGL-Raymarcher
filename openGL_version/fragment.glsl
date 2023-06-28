@@ -324,9 +324,9 @@ void render(inout vec3 col, in vec2 uv)
 }
 vec3 render_halo(vec3 halo_col, float dist_max, float dist)
 {
-    if (haloDist == 0.0 || haloDist > dist_max)
+    if (dist == 0.0 || dist > dist_max)
         return vec3(0, 0, 0);
-    return halo_col * (1 - haloDist/dist_max);
+    return halo_col * (1 - dist/dist_max);
 }
 
 void main()
@@ -335,7 +335,7 @@ void main()
 
     vec3 col = vec3(0,0,0);
     render(col, uv);
-    col = col + render_halo(vec3(0.3, 0.3, 0.3), 1.0);
+    col = col + render_halo(vec3(0.3, 0.3, 0.3), 1.0, haloDist);
 
     fragColor = vec4(col, 1.0);
 }
