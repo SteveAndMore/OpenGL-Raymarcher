@@ -94,7 +94,39 @@ float fQuad( vec3 p, vec3 a, vec3 b, vec3 c, vec3 d )
      dot(nor,pa)*dot(nor,pa)/dot2(nor) );
 }
 
+float haloDist = 0.0;
+float haloDistSadow = 0.0;
+bool light_map = false;
+
 vec2 map(vec3 p) {
+    if (sceneType == 3)
+    {
+        // shere
+        vec3 ps = p - vec3(0.2, 0.2, 1.5);
+        float sphereDist = fSphere(ps, 0.4);
+
+        if (light_map)
+        {
+            if (haloDistSadow == 0.0 || haloDistSadow > sphereDist)
+                haloDistSadow = sphereDist;
+        }
+        else if (haloDist == 0.0 || haloDist > sphereDist)
+            haloDist = sphereDist;
+
+        float sphereID = 1.0;
+        vec2 sphere = vec2(sphereDist, sphereID);
+
+
+        // plane
+        float planeDist = fPlane(p, vec3(0, 1, 0), 4.0);
+        float planeID = 2.0;
+        vec2 plane = vec2(planeDist, planeID);
+
+        vec2 ret;
+        ret = fOpUnionID(sphere, plane);
+        return ret;
+
+    }
     if (sceneType == 2)
     {
         p = mod(p ,10);
@@ -224,6 +256,7 @@ bool lightMarch(vec3 origin, vec3 dir, float dist) {
     float dist_total = 0.0;
     for (int i = 0; i < MAX_STEPS; i++) {
         vec3 p = origin + dir * dist_total;
+        light_map = true;
         hit = map(p);
         dist_total += hit.x;
         if (abs(hit.x) < EPSILON || dist_total > MAX_DIST || dist_total > dist)
@@ -289,6 +322,12 @@ void render(inout vec3 col, in vec2 uv)
             col = vec3(0,0,0);
     }
 }
+vec3 render_halo(vec3 halo_col, float dist_max, float dist)
+{
+    if (haloDist == 0.0 || haloDist > dist_max)
+        return vec3(0, 0, 0);
+    return halo_col * (1 - haloDist/dist_max);
+}
 
 void main()
 {
@@ -296,6 +335,7 @@ void main()
 
     vec3 col = vec3(0,0,0);
     render(col, uv);
+    col = col + render_halo(vec3(0.3, 0.3, 0.3), 1.0);
 
     fragColor = vec4(col, 1.0);
 }

@@ -352,6 +352,8 @@ int main(int argc, char *argv[]) {
             scene_type = 1;
         if (strcmp(argv[1], "2") == 0)
             scene_type = 2;
+        if (strcmp(argv[1], "3") == 0)
+            scene_type = 3;
     }
   init_glut(argc, argv);
   if (!init_glew())
