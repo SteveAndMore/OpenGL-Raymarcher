@@ -7,6 +7,10 @@ uniform vec3 cam_rot;
 uniform float sceneType; //0 = basic, 1 = stylish, 2 = fractal
 uniform float time;
 uniform float canon_time = -1;
+uniform vec2 mouse_pos;
+uniform int obj_selected;
+uniform vec4 obj_1;
+
 
 const float FOV = 1.0;
 const int MAX_STEPS = 256;
@@ -94,28 +98,29 @@ float fQuad( vec3 p, vec3 a, vec3 b, vec3 c, vec3 d )
      dot(nor,pa)*dot(nor,pa)/dot2(nor) );
 }
 
-float haloDist = 0.0;
-float haloDistSadow = 0.0;
 bool light_map = false;
+float tourDist_obj_1 = 0.0;
+
+void tourDistObj1(float dist)
+{
+    if (!light_map)
+    {
+        if (tourDist_obj_1 == 0.0 || tourDist_obj_1 > dist)
+            tourDist_obj_1 = dist;
+    }
+}
 
 vec2 map(vec3 p) {
     if (sceneType == 3)
     {
         // shere
-        vec3 ps = p - vec3(0.2, 0.2, 1.5);
+        vec3 ps = p - obj_1.xyz;
         float sphereDist = fSphere(ps, 0.4);
 
-        if (light_map)
-        {
-            if (haloDistSadow == 0.0 || haloDistSadow > sphereDist)
-                haloDistSadow = sphereDist;
-        }
-        else if (haloDist == 0.0 || haloDist > sphereDist)
-            haloDist = sphereDist;
-
-        float sphereID = 1.0;
+        float sphereID = 101.0;
         vec2 sphere = vec2(sphereDist, sphereID);
 
+        tourDistObj1(sphere.x);
 
         // plane
         float planeDist = fPlane(p, vec3(0, 1, 0), 4.0);
@@ -130,49 +135,50 @@ vec2 map(vec3 p) {
     if (sceneType == 2)
     {
         p = mod(p ,10);
-        vec3 ps = p - vec3(5.0, 5.0, 5.0);
+        vec3 ps = p - obj_1.xyz;
         float sphereDist = fSphere(ps, 0.6);
-        float sphereID = 1.0;
+        float sphereID = 101.0;
+        tourDistObj1(sphereDist);
         return vec2(sphereDist, sphereID);
     }
 
     if (sceneType == 1)
     {
-        vec3 boatCenter = vec3(0,-5, 20);
+        vec3 boatCenter = obj_1.xyz;
         // cylindre
         float cylinderDist = fCylinder(boatCenter - p, vec3(10,0,0), vec3(-10, 0,0), 3.5);
-        float cylinderID = 12.0;
+        float cylinderID = 112.0;
         vec2 cylinder = vec2(cylinderDist, cylinderID);
         // cut boat box
         float cutBoatBoxDist = fBox(boatCenter - p + vec3(0, 5, 0), vec3(20, 5, 5));
-        float cutBoatBoxID = 13.0;
+        float cutBoatBoxID = 113.0;
         vec2 cutBoatBox = vec2(cutBoatBoxDist, cutBoatBoxID);
         // sphere
         float sphereDist = fSphere(boatCenter - p + vec3(10, 0, 0), 3.5);
-        float sphereID = 12.0;
+        float sphereID = 112.0;
         vec2 sphere = vec2(sphereDist, sphereID);
         // sphere_2
         float sphereDist2 = fSphere(boatCenter - p + vec3(-10, 0, 0), 3.5);
-        float sphereID2 = 12.0;
+        float sphereID2 = 112.0;
         vec2 sphere2 = vec2(sphereDist2, sphereID2);
         //Mat
         float matDist = fCylinder(boatCenter - p + vec3(0, 10, 0), vec3(0,20,0), vec3(0, 0, 0), 0.3);
-        float matID = 13.0;
+        float matID = 113.0;
         vec2 mat = vec2(matDist, matID);
         //flag
         float flagDist = fQuad(boatCenter - p + vec3(2, 8.4, 0) , vec3(2, -1,0), vec3(-2,-1,0), vec3(-2,1,0), vec3(2,1,0));
         flagDist += waveFlag(p);
-        float flagID = 14.0;
+        float flagID = 114.0;
         vec2 flag = vec2(flagDist, flagID);
 
         //canon
         vec3 canonCenter = boatCenter + vec3(3, 1, -4);
         float canonDist = fCylinder(canonCenter - p, vec3(0,0,1.5), vec3(0, 0,-1.5), 0.3);
-        float canonID = 15.0;
+        float canonID = 115.0;
         vec2 canon = vec2(canonDist, canonID);
         //canonInt
         float canonIntDist = fCylinder(canonCenter - p, vec3(0,0,1.6), vec3(0, 0,-1.5), 0.2);
-        float canonIntID = 16.0;
+        float canonIntID = 116.0;
         vec2 canonInt = vec2(canonIntDist, canonIntID);
         //weel1
         float weel1Dist = fCylinder(canonCenter - p + vec3(0.5, -0.5, 1), vec3(0.2,0,0), vec3(0, 0,0), 0.5);
@@ -187,7 +193,7 @@ vec2 map(vec3 p) {
             bullet_pos = vec3(0, 0,1 - (time - canon_time)/50);
         }
         float bulletDist = fSphere(canonCenter - p + bullet_pos, 0.2);
-        vec2 bullet = vec2(bulletDist, canonID);
+        vec2 bullet = vec2(bulletDist, 16.0);
 
         // water
         float waterDist = fPlane(p, vec3(0, 1, 0), 7.0 + wave(p));
@@ -206,20 +212,24 @@ vec2 map(vec3 p) {
         ret = fOpUnionID(canon, ret);
         ret = fOpUnionID(ret, weel1);
         ret = fOpUnionID(ret, weel2);
+
+        tourDistObj1(ret.x);
+
         ret = fOpUnionID(water, ret);
         return ret;
     }
+
     vec2 ret;
     // cube
-    float boxDist = fBox(p - vec3(0.2, 0.2, 1.5), vec3(0.3, 0.3, 0.3));
-    float boxID = 3.0;
+    float boxDist = fBox(p - obj_1.xyz, vec3(0.3, 0.3, 0.3));
+    float boxID = 103.0;
     vec2 box = vec2(boxDist, boxID);
 
 
     // shere
-    vec3 ps = p - vec3(0.2, 0.2, 1.5);
+    vec3 ps = p - obj_1.xyz;
     float sphereDist = fSphere(ps, 0.4);
-    float sphereID = 1.0;
+    float sphereID = 101.0;
     vec2 sphere = vec2(sphereDist, sphereID);
 
 
@@ -229,6 +239,7 @@ vec2 map(vec3 p) {
     vec2 plane = vec2(planeDist, planeID);
 
     ret = fOpDifferenceID(box, sphere);
+    tourDistObj1(ret.x);
     ret = fOpUnionID(ret, plane);
     return ret;
 }
@@ -287,7 +298,30 @@ vec3 getLight(vec3 p, vec3 dir, vec3 color)
     return diffuse + specular + ambient;
 }
 
-void render(inout vec3 col, in vec2 uv)
+vec3 get_obj(int id)
+{
+    float mat_id = id % 100;
+    int obj_id = id / 100;
+    if (obj_id == 1)
+        gl_FragDepth = 0.1;
+
+    if (mat_id == 1)
+        return vec3(1,0.8,0.5);
+    else if (mat_id == 2)
+        return vec3(0.6,0.6,0.2);
+    else if (mat_id == 3)
+        return vec3(0.3,0.2,0.4);
+    else if (mat_id == 11)
+        return vec3(0.1,0.3,0.8);
+    else if (mat_id == 12)
+        return vec3(0.9,0.67,0.5);
+    else if (mat_id == 13)
+        return vec3(1,0.9,0.8);
+    else
+        return vec3(0.5,0.5,0.5);
+}
+
+int render(inout vec3 col, in vec2 uv)
 {
     vec3 origin = cam_pos;
     vec3 lookAt = normalize(cam_rot);
@@ -297,22 +331,12 @@ void render(inout vec3 col, in vec2 uv)
     vec2 hit = rayMarch(origin, dir);
     if (abs(hit.x) < MAX_DIST) {
         vec3 p = origin + dir * hit.x;
-        if (hit.y == 1)
-            col = getLight(p, dir, vec3(1,0.8,0.5));
-        else if (hit.y == 2)
-            col = getLight(p, dir, vec3(0.6,0.6,0.2));
-        else if (hit.y == 3)
-            col = getLight(p, dir, vec3(0.3,0.2,0.4));
-        else if (hit.y == 11)
-            col = getLight(p, dir, vec3(0.1,0.3,0.8));
-        else if (hit.y == 12)
-            col = getLight(p, dir, vec3(0.9,0.67,0.5));
-        else if (hit.y == 13)
-            col = getLight(p, dir, vec3(1,0.9,0.8));
-        else
-            col = getLight(p, dir, vec3(0.5,0.5,0.5));
+        col = get_obj(int(hit.y));
+        col = getLight(p, dir, col);
+
         if (sceneType == 1)
             col = mix(col, vec3(0.5, 0.7, 0.9), 1.0 - exp(-0.0001 * hit.x * hit.x));
+        return 1;
     }
     else
     {
@@ -320,22 +344,33 @@ void render(inout vec3 col, in vec2 uv)
             col = vec3(0.5, 0.7, 0.9);
         else
             col = vec3(0,0,0);
+        return 0;
     }
 }
 vec3 render_halo(vec3 halo_col, float dist_max, float dist)
 {
-    if (dist == 0.0 || dist > dist_max)
+    if (dist <= EPSILON || dist > dist_max)
         return vec3(0, 0, 0);
     return halo_col * (1 - dist/dist_max);
+}
+vec3 render_tour(vec3 tour_col, float dist_max, float dist)
+{
+    if (dist <= EPSILON || dist > dist_max)
+        return vec3(0, 0, 0);
+    return tour_col;
 }
 
 void main()
 {
+    gl_FragDepth = 0.02;
     vec2 uv = (2.0 * gl_FragCoord.xy - u_resolution.xy) / u_resolution.y;
 
     vec3 col = vec3(0,0,0);
-    render(col, uv);
-    col = col + render_halo(vec3(0.3, 0.3, 0.3), 1.0, haloDist);
+    int obj_hit_ = render(col, uv);
+    //col = col + render_halo(vec3(0.3, 0.3, 0.3), 1.0, haloDist);
+
+    if (obj_selected == 1)
+        col = col + render_tour(vec3(1.0, 0.0, 1.0), 0.01, tourDist_obj_1);
 
     fragColor = vec4(col, 1.0);
 }

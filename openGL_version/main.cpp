@@ -195,16 +195,30 @@ void test_opengl_error(std::string func, std::string file, int line) {
     }
 
   }
+struct shader_data
+{
+    int obj_hit = 0;
+};
+GLuint ssbo_id;
 
 GLint cam_pos_id;
 GLint cam_rot_id;
 GLint time_id;
 GLint canon_time_id;
 GLint cam_resolution_id;
+GLint mouse_pos_id;
+GLint obj_selected_id;
+GLint obj_1_id;
 cam cam_;
 
-void init_scene(float scene_type)
+void init_scene(int scene_type)
 {
+    shader_data sd;
+    glGenBuffers(1, &ssbo_id);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo_id);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(shader_data), &sd, GL_DYNAMIC_COPY);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
     cam_.pos_x = 0;
     cam_.pos_y = 0;
     cam_.pos_z = 0;
@@ -224,9 +238,32 @@ void init_scene(float scene_type)
     glProgramUniform1f(program_id, time_id, glutGet(GLUT_ELAPSED_TIME));TEST_OPENGL_ERROR();
 
     cam_resolution_id = glGetUniformLocation(program_id, "u_resolution");TEST_OPENGL_ERROR();
-    glProgramUniform2f(program_id, cam_resolution_id, pixWIDTH, pixHEIGHT);TEST_OPENGL_ERROR();
+    glProgramUniform2f(program_id, cam_resolution_id, glutGet(GLUT_WINDOW_WIDTH), glutGet(GLUT_WINDOW_HEIGHT));TEST_OPENGL_ERROR();
 
     canon_time_id = glGetUniformLocation(program_id, "canon_time");TEST_OPENGL_ERROR();
+
+    mouse_pos_id = glGetUniformLocation(program_id, "mouse_pos");TEST_OPENGL_ERROR();
+
+    obj_selected_id = glGetUniformLocation(program_id, "obj_selected");TEST_OPENGL_ERROR();
+    glProgramUniform1i(program_id, obj_selected_id, 0);TEST_OPENGL_ERROR();
+
+    obj_1_id = glGetUniformLocation(program_id, "obj_1");TEST_OPENGL_ERROR();
+    switch (scene_type)
+    {
+        case 0:
+            glProgramUniform4f(program_id, obj_1_id, 0.2, 0.2, 1.5, 1.0);TEST_OPENGL_ERROR();
+            break;
+        case 1:
+            glProgramUniform4f(program_id, obj_1_id, 0.0, -5.0, 20.0, 1.0);TEST_OPENGL_ERROR();
+            break;
+        case 2:
+            glProgramUniform4f(program_id, obj_1_id, 5.0, 5.0, 5.0, 1.0);TEST_OPENGL_ERROR();
+            break;
+        case 3:
+            glProgramUniform4f(program_id, obj_1_id, 0.2, 0.2, 1.5, 1.0);TEST_OPENGL_ERROR();
+            break;
+    }
+
 }
 void update_cam_pos()
 {
@@ -261,8 +298,30 @@ void mouse(int button, int state, int x, int y) {
     }
 }
 
+GLubyte *data = (GLubyte*)malloc(1);
+void passiv_mouse_motion(int x, int y)
+{
+    int w_h = glutGet(GLUT_WINDOW_HEIGHT);
+    float x_ = (float)x / (float)glutGet(GLUT_WINDOW_WIDTH);
+    float y_ = (float)y / (float)w_h;
+    glProgramUniform2f(program_id, mouse_pos_id, x_, y_);TEST_OPENGL_ERROR();
+    if( data ) {
+        glReadPixels(x, w_h - y, 1, 1, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, data);
+    }
+    if ((uint)data[0] == 25)
+    {
+        glProgramUniform1i(program_id, obj_selected_id, 1);TEST_OPENGL_ERROR();
+    }
+    else
+    {
+        glProgramUniform1i(program_id, obj_selected_id, 0);TEST_OPENGL_ERROR();
+    }
+
+}
+
 void mouse_motion(int x, int y)
 {
+    passiv_mouse_motion(x, y);
     if (cam_.is_rotating)
     {
         float x_diff = (cam_.last_mouse_pos_x - x) / pixWIDTH;
@@ -296,6 +355,7 @@ void mouse_motion(int x, int y)
         }
     }
 }
+
 
 float cam_mov = 0.1;
 void keyboard(unsigned char key, int x, int y)
@@ -334,8 +394,7 @@ void keyboard(unsigned char key, int x, int y)
     }
     if (key == 114) //r
     {
-        window_resize(2560, 1440);
-        glUniform2f(cam_resolution_id, pixWIDTH, pixHEIGHT);TEST_OPENGL_ERROR();
+        glProgramUniform2f(program_id, cam_resolution_id, glutGet(GLUT_WINDOW_WIDTH), glutGet(GLUT_WINDOW_HEIGHT));TEST_OPENGL_ERROR();
         glutPostRedisplay();
     }
     if (key == 102) //f
@@ -345,7 +404,7 @@ void keyboard(unsigned char key, int x, int y)
 }
 
 int main(int argc, char *argv[]) {
-    float scene_type = 0;
+    int scene_type = 0;
     if (argc > 1)
     {
         if (strcmp(argv[1], "1") == 0)
@@ -364,6 +423,7 @@ int main(int argc, char *argv[]) {
   glutIdleFunc(idle);
   glutMouseFunc(mouse);
   glutMotionFunc(mouse_motion);
+  glutPassiveMotionFunc(passiv_mouse_motion);
   glutKeyboardFunc(keyboard);
   glutMainLoop();
 }
