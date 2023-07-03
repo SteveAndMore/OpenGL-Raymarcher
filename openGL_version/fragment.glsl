@@ -10,6 +10,8 @@ uniform float canon_time = -1;
 uniform vec2 mouse_pos;
 uniform int obj_selected;
 uniform vec4 obj_1;
+uniform vec4 obj_2;
+uniform vec4 obj_3;
 
 
 const float FOV = 1.0;
@@ -43,6 +45,10 @@ vec2 fOpUnionID(vec2 res1, vec2 res2) {
 
 vec2 fOpDifferenceID(vec2 res1, vec2 res2) {
     return (res1.x > -res2.x) ? res1 : vec2(-res2.x, res2.y);
+}
+vec2 fOpSmoothUnionID( vec2 d1, vec2 d2, float k ) {
+    float h = clamp( 0.5 + 0.5*(d2.x - d1.x)/k, 0.0, 1.0 );
+    return vec2(mix( d2.x, d1.x, h ) - k*h*(1.0-h), (d1.x < d2.x)? d1.y: d2.y);
 }
 float fOpSmoothUnion( float d1, float d2, float k ) {
     float h = clamp( 0.5 + 0.5*(d2-d1)/k, 0.0, 1.0 );
@@ -100,6 +106,8 @@ float fQuad( vec3 p, vec3 a, vec3 b, vec3 c, vec3 d )
 
 bool light_map = false;
 float tourDist_obj_1 = 0.0;
+float tourDist_obj_2 = 0.0;
+float tourDist_obj_3 = 0.0;
 
 void tourDistObj1(float dist)
 {
@@ -109,18 +117,102 @@ void tourDistObj1(float dist)
             tourDist_obj_1 = dist;
     }
 }
+void tourDistObj2(float dist)
+{
+    if (!light_map)
+    {
+        if (tourDist_obj_2 == 0.0 || tourDist_obj_2 > dist)
+            tourDist_obj_2 = dist;
+    }
+}
+void tourDistObj3(float dist)
+{
+    if (!light_map)
+    {
+        if (tourDist_obj_3 == 0.0 || tourDist_obj_3 > dist)
+            tourDist_obj_3 = dist;
+    }
+}
+void pR(inout vec2 p, float a) {
+    p = cos(a)*p + sin(a)*vec2(p.y, -p.x);
+}
+
+vec3 rotate(vec3 p)
+{
+    //pR(p.yz, -time);
+    pR(p.xz, time * 0.05);
+    return p;
+}
 
 vec2 map(vec3 p) {
+    if (sceneType == 4)
+    {
+        vec3 helicop = obj_1.xyz;
+
+        //box
+        float boxDist = fBox(p - helicop, vec3(0.5, 0.2, 0.2));
+        float boxID = 120.0;
+        vec2 box = vec2(boxDist, boxID);
+
+        //cyl
+        float cylinderDist = fCylinder(p - helicop + vec3(0., -0.25, 0.), vec3(0,-0.3,0), vec3(0, 0,0), 0.01);
+        float cylinderID = 112.0;
+        vec2 cylinder = vec2(cylinderDist, cylinderID);
+
+        //pal
+        float palDist = fCylinder(p - helicop + vec3(0., -0.25, 0.), rotate(vec3(0.5, 0, 0)), vec3(0,0,0), 0.01);
+        float palID = 120.0;
+        vec2 pal = vec2(palDist, palID);
+
+        // plane
+        float planeDist = fPlane(p, vec3(0, 1, 0), 4.0);
+        float planeID = 23.0;
+        vec2 plane = vec2(planeDist, planeID);
+        //moon
+        vec3 ps = p - obj_2.xyz;
+        float moonDist = fSphere(ps, 10.4);
+        float moonID = 225.0;
+        vec2 moon = vec2(moonDist, moonID);
+        tourDistObj2(moonDist);
+
+
+        vec2 ret;
+        ret = fOpUnionID(box, cylinder);
+        ret = fOpUnionID(ret, pal);
+        tourDistObj1(ret.x);
+
+        ret = fOpUnionID(ret, plane);
+        ret = fOpUnionID(ret, moon);
+        return ret;
+    }
     if (sceneType == 3)
     {
-        // shere
+        // shere 1
         vec3 ps = p - obj_1.xyz;
-        float sphereDist = fSphere(ps, 0.4);
+        float sphere1Dist = fSphere(ps, 0.4);
 
-        float sphereID = 101.0;
-        vec2 sphere = vec2(sphereDist, sphereID);
+        float sphere1ID = 101.0;
+        vec2 sphere1 = vec2(sphere1Dist, sphere1ID);
 
-        tourDistObj1(sphere.x);
+        tourDistObj1(sphere1.x);
+
+        // shere 2
+        ps = p - obj_2.xyz;
+        float sphere2Dist = fSphere(ps, 0.4);
+
+        float sphere2ID = 201.0;
+        vec2 sphere2 = vec2(sphere2Dist, sphere2ID);
+
+        tourDistObj2(sphere2.x);
+
+        // shere 3
+        ps = p - obj_3.xyz;
+        float sphere3Dist = fSphere(ps, 0.4);
+
+        float sphere3ID = 301.0;
+        vec2 sphere3 = vec2(sphere3Dist, sphere3ID);
+
+        tourDistObj3(sphere3.x);
 
         // plane
         float planeDist = fPlane(p, vec3(0, 1, 0), 4.0);
@@ -128,7 +220,17 @@ vec2 map(vec3 p) {
         vec2 plane = vec2(planeDist, planeID);
 
         vec2 ret;
-        ret = fOpUnionID(sphere, plane);
+        ret = fOpSmoothUnionID(sphere1, sphere2, 1);
+        ret = fOpSmoothUnionID(ret, sphere3, 1);
+
+        if (ret.y == 301)
+            tourDistObj3(ret.x);
+        else if (ret.y == 201)
+            tourDistObj2(ret.x);
+        else
+            tourDistObj1(ret.x);
+
+        ret = fOpUnionID(ret, plane);
         return ret;
 
     }
@@ -283,7 +385,11 @@ vec3 getLight(vec3 p, vec3 dir, vec3 color)
         vec3 norm = getNormal(p);
         return norm * color;
     }
-    vec3 lightPos = vec3(7.0, 7.0, -7.0);
+    vec3 lightPos;
+    if (sceneType == 4)
+        lightPos = obj_2.xyz - vec3(-11, 31, 31);
+    else
+        lightPos = vec3(7.0, 7.0, -7.0);
     vec3 light  = normalize(lightPos - p);
     vec3 norm = getNormal(p);
     vec3 spec_reflect = reflect(-light, norm);
@@ -293,7 +399,7 @@ vec3 getLight(vec3 p, vec3 dir, vec3 color)
     vec3 specular = vec3(0.6) * pow(clamp(dot(spec_reflect, -dir), 0.0, 1.0), 10.0);
     vec3 diffuse = color * clamp(dot(light, norm), 0.0, 1.0);
 
-    if (lightMarch(p + norm * 0.02, normalize(lightPos), length(lightPos - p)))
+    if (lightMarch(p + norm * 0.02, light, length(lightPos - p)))
        return specular + ambient;
     return diffuse + specular + ambient;
 }
@@ -304,6 +410,10 @@ vec3 get_obj(int id)
     int obj_id = id / 100;
     if (obj_id == 1)
         gl_FragDepth = 0.1;
+    if (obj_id == 2)
+        gl_FragDepth = 0.2;
+    if (obj_id == 3)
+        gl_FragDepth = 0.3;
 
     if (mat_id == 1)
         return vec3(1,0.8,0.5);
@@ -317,11 +427,20 @@ vec3 get_obj(int id)
         return vec3(0.9,0.67,0.5);
     else if (mat_id == 13)
         return vec3(1,0.9,0.8);
+    else if (mat_id == 20)
+        return vec3(0.34,0.33,0.30);
+    else if (mat_id == 23)
+        return vec3(0.6,0.46,0.32);
+    else if (mat_id == 25)
+        return vec3(1,1,1);
     else
         return vec3(0.5,0.5,0.5);
 }
+float rand(vec2 co){
+    return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453);
+}
 
-int render(inout vec3 col, in vec2 uv)
+float render(inout vec3 col, in vec2 uv)
 {
     vec3 origin = cam_pos;
     vec3 lookAt = normalize(cam_rot);
@@ -336,22 +455,31 @@ int render(inout vec3 col, in vec2 uv)
 
         if (sceneType == 1)
             col = mix(col, vec3(0.5, 0.7, 0.9), 1.0 - exp(-0.0001 * hit.x * hit.x));
-        return 1;
+        return hit.x;
     }
     else
     {
         if (sceneType == 1)
             col = vec3(0.5, 0.7, 0.9);
+        else if (sceneType == 4)
+        {
+            float rd = rand(uv);
+            if (rd > 0.995)
+                col = vec3(1,1,1);
+            else
+                col = vec3(0,0,0);
+        }
         else
             col = vec3(0,0,0);
-        return 0;
+        return 0.0;
     }
 }
 vec3 render_halo(vec3 halo_col, float dist_max, float dist)
 {
     if (dist <= EPSILON || dist > dist_max)
         return vec3(0, 0, 0);
-    return halo_col * (1 - dist/dist_max);
+    float d = (1 - dist/dist_max);
+    return halo_col * d * d;
 }
 vec3 render_tour(vec3 tour_col, float dist_max, float dist)
 {
@@ -366,11 +494,33 @@ void main()
     vec2 uv = (2.0 * gl_FragCoord.xy - u_resolution.xy) / u_resolution.y;
 
     vec3 col = vec3(0,0,0);
-    int obj_hit_ = render(col, uv);
-    //col = col + render_halo(vec3(0.3, 0.3, 0.3), 1.0, haloDist);
+    render(col, uv);
+    float obj_1_dist_ = length(cam_pos - obj_1.xyz);
+    float obj_2_dist_ = length(cam_pos - obj_2.xyz);
+    float obj_3_dist_ = length(cam_pos - obj_3.xyz);
 
+    if (sceneType == 4)
+    {
+        col = col + render_halo(vec3(1.0, 1.0, 1.0), 10, tourDist_obj_2);
+    }
     if (obj_selected == 1)
-        col = col + render_tour(vec3(1.0, 0.0, 1.0), 0.01, tourDist_obj_1);
+    {
+        vec3 c = render_tour(vec3(1.0, 0.0, 1.0), 0.006 * obj_1_dist_, tourDist_obj_1);
+        if (c != vec3(0,0,0))
+            col = c;
+    }
+    if (obj_selected == 2)
+    {
+        vec3 c = render_tour(vec3(1.0, 0.0, 1.0), 0.006 * obj_2_dist_, tourDist_obj_2);
+        if (c != vec3(0,0,0))
+            col = c;
+    }
+    if (obj_selected == 3)
+    {
+        vec3 c = render_tour(vec3(1.0, 0.0, 1.0), 0.006 * obj_3_dist_, tourDist_obj_3);
+        if (c != vec3(0,0,0))
+            col = c;
+    }
 
     fragColor = vec4(col, 1.0);
 }

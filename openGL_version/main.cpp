@@ -19,8 +19,8 @@ void test_opengl_error(std::string func, std::string file, int line);
 GLuint program_id;
 GLuint vao_id;
 
-int pixWIDTH = 1024;
-int pixHEIGHT = 1024;
+int pixWIDTH = 1024;//glutGet(GLUT_WINDOW_WIDTH);
+int pixHEIGHT = 1024;//glutGet(GLUT_WINDOW_HEIGHT);
 
 void window_resize(int width, int height) {
   glViewport(0,0,width,height);TEST_OPENGL_ERROR();
@@ -199,7 +199,6 @@ struct shader_data
 {
     int obj_hit = 0;
 };
-GLuint ssbo_id;
 
 GLint cam_pos_id;
 GLint cam_rot_id;
@@ -209,16 +208,23 @@ GLint cam_resolution_id;
 GLint mouse_pos_id;
 GLint obj_selected_id;
 GLint obj_1_id;
+GLint obj_2_id;
+GLint obj_3_id;
 cam cam_;
+obj obj_1;
+obj obj_2;
+obj obj_3;
+
+void obj_set(obj& obj_, float x, float y, float z, float id)
+{
+    obj_.x = x;
+    obj_.y = y;
+    obj_.z = z;
+    obj_.id = id;
+}
 
 void init_scene(int scene_type)
 {
-    shader_data sd;
-    glGenBuffers(1, &ssbo_id);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo_id);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(shader_data), &sd, GL_DYNAMIC_COPY);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-
     cam_.pos_x = 0;
     cam_.pos_y = 0;
     cam_.pos_z = 0;
@@ -237,6 +243,9 @@ void init_scene(int scene_type)
     time_id = glGetUniformLocation(program_id, "time");TEST_OPENGL_ERROR();
     glProgramUniform1f(program_id, time_id, glutGet(GLUT_ELAPSED_TIME));TEST_OPENGL_ERROR();
 
+    pixWIDTH = glutGet(GLUT_WINDOW_WIDTH);
+    pixHEIGHT = glutGet(GLUT_WINDOW_HEIGHT);
+
     cam_resolution_id = glGetUniformLocation(program_id, "u_resolution");TEST_OPENGL_ERROR();
     glProgramUniform2f(program_id, cam_resolution_id, glutGet(GLUT_WINDOW_WIDTH), glutGet(GLUT_WINDOW_HEIGHT));TEST_OPENGL_ERROR();
 
@@ -251,19 +260,31 @@ void init_scene(int scene_type)
     switch (scene_type)
     {
         case 0:
-            glProgramUniform4f(program_id, obj_1_id, 0.2, 0.2, 1.5, 1.0);TEST_OPENGL_ERROR();
+            obj_set(obj_1, 0.2, 0.2, 1.5, 1.0);
             break;
         case 1:
-            glProgramUniform4f(program_id, obj_1_id, 0.0, -5.0, 20.0, 1.0);TEST_OPENGL_ERROR();
+            obj_set(obj_1, 0.0, -5.0, 20.0, 1.0);
             break;
         case 2:
-            glProgramUniform4f(program_id, obj_1_id, 5.0, 5.0, 5.0, 1.0);TEST_OPENGL_ERROR();
+            obj_set(obj_1, 5.0, 5.0, 5.0, 1.0);
             break;
         case 3:
-            glProgramUniform4f(program_id, obj_1_id, 0.2, 0.2, 1.5, 1.0);TEST_OPENGL_ERROR();
+            obj_set(obj_1, 0.2, 0.2, 1.5, 1.0);
+            obj_2_id = glGetUniformLocation(program_id, "obj_2");TEST_OPENGL_ERROR();
+            obj_3_id = glGetUniformLocation(program_id, "obj_3");TEST_OPENGL_ERROR();
+            obj_set(obj_2, 2.0, 0.2, 1.5, 2.0);
+            obj_set(obj_3, -2.2, 0.0, 1.5, 3.0);
+            glProgramUniform4f(program_id, obj_2_id, obj_2.x, obj_2.y, obj_2.z, obj_2.id);TEST_OPENGL_ERROR();
+            glProgramUniform4f(program_id, obj_3_id, obj_3.x, obj_3.y, obj_3.z, obj_3.id);TEST_OPENGL_ERROR();
+            break;
+        case 4:
+            obj_2_id = glGetUniformLocation(program_id, "obj_2");TEST_OPENGL_ERROR();
+            obj_set(obj_1, 0., 0., 1., 1.0);
+            obj_set(obj_2, -100., 50., 100., 2.0);
+            glProgramUniform4f(program_id, obj_2_id, obj_2.x, obj_2.y, obj_2.z, obj_2.id);TEST_OPENGL_ERROR();
             break;
     }
-
+    glProgramUniform4f(program_id, obj_1_id, obj_1.x, obj_1.y, obj_1.z, obj_1.id);TEST_OPENGL_ERROR();
 }
 void update_cam_pos()
 {
@@ -282,11 +303,18 @@ void idle()
 }
 
 void mouse(int button, int state, int x, int y) {
-    if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN)
+    if (state == GLUT_DOWN)
     {
-        if (!cam_.is_rotating)
+        if (button == GLUT_LEFT_BUTTON && !cam_.is_rotating)
         {
             cam_.is_rotating = true;
+
+            cam_.last_mouse_pos_x = x;
+            cam_.last_mouse_pos_y = y;
+        }
+        if (button == GLUT_RIGHT_BUTTON && !cam_.is_selecting)
+        {
+            cam_.is_selecting = true;
 
             cam_.last_mouse_pos_x = x;
             cam_.last_mouse_pos_y = y;
@@ -295,6 +323,10 @@ void mouse(int button, int state, int x, int y) {
     if (button == GLUT_LEFT_BUTTON && state == GLUT_UP)
     {
         cam_.is_rotating = false;
+    }
+    if (button == GLUT_RIGHT_BUTTON && state == GLUT_UP)
+    {
+        cam_.is_selecting = false;
     }
 }
 
@@ -307,31 +339,142 @@ void passiv_mouse_motion(int x, int y)
     glProgramUniform2f(program_id, mouse_pos_id, x_, y_);TEST_OPENGL_ERROR();
     if( data ) {
         glReadPixels(x, w_h - y, 1, 1, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, data);
-    }
-    if ((uint)data[0] == 25)
-    {
-        glProgramUniform1i(program_id, obj_selected_id, 1);TEST_OPENGL_ERROR();
-    }
-    else
-    {
-        glProgramUniform1i(program_id, obj_selected_id, 0);TEST_OPENGL_ERROR();
+        uint d = (uint)data[0];
+        if (d == 25)
+        {
+            obj_1.is_selected = true;
+            obj_2.is_selected = false;
+            obj_3.is_selected = false;
+            glProgramUniform1i(program_id, obj_selected_id, 1);TEST_OPENGL_ERROR();
+        }
+        else if (d == 51)
+        {
+            obj_1.is_selected = false;
+            obj_3.is_selected = false;
+            obj_2.is_selected = true;
+            glProgramUniform1i(program_id, obj_selected_id, 2);TEST_OPENGL_ERROR();
+        }
+        else if (d == 76)
+        {
+            obj_1.is_selected = false;
+            obj_2.is_selected = false;
+            obj_3.is_selected = true;
+            glProgramUniform1i(program_id, obj_selected_id, 3);TEST_OPENGL_ERROR();
+        }
+        else
+        {
+            obj_1.is_selected = false;
+            obj_2.is_selected = false;
+            obj_3.is_selected = false;
+            glProgramUniform1i(program_id, obj_selected_id, 0);TEST_OPENGL_ERROR();
+        }
     }
 
 }
 
+vec3 rotate_x(vec3 p, float sin, float cos)
+{
+    vec3 ret;
+    ret.x = p.x;
+    ret.y = p.y * cos + p.z * -sin;
+    ret.z = p.y * sin + p.z * cos;
+    return ret;
+}
+vec3 rotate_y(vec3 p, float sin, float cos)
+{
+    vec3 ret;
+    ret.x = p.x * cos + p.z * sin;
+    ret.y = p.y;
+    ret.z = p.x * -sin + p.z * cos;
+    return ret;
+}
+vec3 rotate_z(vec3 p, float sin, float cos)
+{
+    vec3 ret;
+    ret.x = p.x * cos + p.y * -sin;
+    ret.y = p.x * sin + p.y * cos;
+    ret.z = p.z;
+    return ret;
+}
+
+void move_obj(obj& obj_, GLint id, float x_diff, float y_diff)
+{
+            float cos_px = 0;
+            float sin_px = 1;
+            float cos_py = 0;
+            float sin_py = 1;
+            float cos_pz = 1;
+            float sin_pz = 0;
+
+            cos_px = cam_.look_at_x / 1; //cos(angle_pass_x);
+            sin_px = sqrt(1 - (cam_.look_at_x * cam_.look_at_x)) / 1; //sin(angle_pass_x);
+
+            cos_py = cam_.look_at_y / 1;//cos(angle_pass_y);
+            sin_py = sqrt(1 - (cam_.look_at_y * cam_.look_at_y)) / 1;//sin(angle_pass_y);
+
+            cos_pz = cam_.look_at_z / 1;//cos(angle_pass_z);
+            sin_pz = sqrt(1 - (cam_.look_at_z * cam_.look_at_z)) / 1;//sin(angle_pass_z);
+
+            vec3 obj;
+            obj.x = obj_.x - cam_.pos_x;
+            obj.y = obj_.y - cam_.pos_y;
+            obj.z = obj_.z - cam_.pos_z;
+            vec3 obj_r = rotate_x(rotate_y(rotate_z(obj, sin_pz, cos_pz), sin_py, cos_py), sin_px, cos_px);
+
+            float sinx = sin(x_diff * 3.14159/2 * ((float)pixWIDTH/(float)pixHEIGHT));
+            float cosx = cos(x_diff * 3.14159/2 * ((float)pixWIDTH/(float)pixHEIGHT));
+            float siny = sin(y_diff * 3.14159/2);
+            float cosy = cos(y_diff * 3.14159/2);
+
+            if (obj.z < 0)
+                siny = -siny;
+            obj_r = rotate_z(obj_r, sinx, cosx);
+            obj_r = rotate_y(obj_r, siny, cosy);
+            obj_r = rotate_z(rotate_y(rotate_x(obj_r, -sin_px, cos_px), -sin_py, cos_py), -sin_pz, cos_pz);
+
+            obj_.x = obj_r.x + cam_.pos_x;
+            obj_.y = obj_r.y + cam_.pos_y;
+            obj_.z = obj_r.z + cam_.pos_z;
+
+            glProgramUniform4f(program_id, id, obj_.x, obj_.y, obj_.z, obj_.id);TEST_OPENGL_ERROR();
+}
+
 void mouse_motion(int x, int y)
 {
+    if (cam_.is_selecting)
+    {
+        float x_diff = -(cam_.last_mouse_pos_x - x) / pixWIDTH;
+        float y_diff = -(cam_.last_mouse_pos_y - y) / pixHEIGHT;
+        if (std::abs(x_diff) + std::abs(y_diff) > 1.0/(float)pixHEIGHT)
+        {
+            if (obj_1.is_selected)
+                move_obj(obj_1, obj_1_id, x_diff, y_diff);
+            if (obj_2.is_selected)
+            {
+                move_obj(obj_2, obj_2_id, x_diff, y_diff);
+            }
+            if (obj_3.is_selected)
+                move_obj(obj_3, obj_3_id, x_diff, y_diff);
+            cam_.last_mouse_pos_x = x;
+            cam_.last_mouse_pos_y = y;
+        }
+        return;
+    }
     passiv_mouse_motion(x, y);
     if (cam_.is_rotating)
     {
         float x_diff = (cam_.last_mouse_pos_x - x) / pixWIDTH;
         float y_diff = (cam_.last_mouse_pos_y - y) / pixHEIGHT;
-        if (std::abs(x_diff) + std::abs(y_diff) > 1/pixWIDTH)
+        if (std::abs(x_diff) + std::abs(y_diff) > 1.0/(float)pixWIDTH)
         {
-            float sinx = sin(x_diff);
-            float cosx = cos(x_diff);
-            float siny = sin(y_diff);
-            float cosy = cos(y_diff);
+            float sinx = sin(x_diff * 3.14159/2 * ((float)pixWIDTH/(float)pixHEIGHT));
+            float cosx = cos(x_diff * 3.14159/2 * ((float)pixWIDTH/(float)pixHEIGHT));
+            float siny = sin(y_diff * 3.14159/2);
+            float cosy = cos(y_diff * 3.14159/2);
+            if (cam_.look_at_z < 0)
+            {
+                siny = -siny;
+            }
             float n_look_at_x, n_look_at_y, n_look_at_z;
 
             //sideways rotation
@@ -340,7 +483,6 @@ void mouse_motion(int x, int y)
 
             cam_.look_at_z = n_look_at_z;
             cam_.look_at_x = n_look_at_x;
-
 
             //up down rotation
             n_look_at_y = cam_.look_at_y * cosy + cam_.look_at_z * -siny;
@@ -394,6 +536,9 @@ void keyboard(unsigned char key, int x, int y)
     }
     if (key == 114) //r
     {
+        pixWIDTH = glutGet(GLUT_WINDOW_WIDTH);
+        pixHEIGHT = glutGet(GLUT_WINDOW_HEIGHT);
+
         glProgramUniform2f(program_id, cam_resolution_id, glutGet(GLUT_WINDOW_WIDTH), glutGet(GLUT_WINDOW_HEIGHT));TEST_OPENGL_ERROR();
         glutPostRedisplay();
     }
@@ -413,6 +558,8 @@ int main(int argc, char *argv[]) {
             scene_type = 2;
         if (strcmp(argv[1], "3") == 0)
             scene_type = 3;
+        if (strcmp(argv[1], "4") == 0)
+            scene_type = 4;
     }
   init_glut(argc, argv);
   if (!init_glew())
